@@ -207,12 +207,12 @@ def main(k,path,network_path):
           os.makedirs(save_dir)
          
     ####################### Hyperparametesrs #######################
-    action_std = 0.6            # constant std for action distribution (Multivariate Normal)
+    action_std = 0.5            # constant std for action distribution (Multivariate Normal)
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.99                # discount factor
-    lmbda = 0.95
-    lr = 0.0003                 # parameters for Adam optimizer
-    betas = (0.9, 0.999)
+    lmbda = 0.97               # GAE lambda
+    lr = 0.001                 # parameters for Adam optimizer
+    betas = (0.9, 0.999)       # Adam optimization
     
     
     memory1, memory2, memory3, memory4 = Memory(), Memory(), Memory(), Memory() #Class Memory 사용.
