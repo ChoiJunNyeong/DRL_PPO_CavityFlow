@@ -1,4 +1,4 @@
-# Closed loop control based on DRL for incompressible turbulent open cavity flow (2021 ~ ) 
+# Active control of turbulent open cavity flow using deep reinforcement learning (2021 ~ ) 
 
 1. Agent   
 Pytorch + PPO + GAE   
