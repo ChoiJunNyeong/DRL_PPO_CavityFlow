@@ -83,16 +83,18 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
         return action_logprobs, state_value, dist_entropy  #squeeze : 차원 1개를 없앰. 여기서 차원없애서 update에서 차원이 맞아짐.
 
 class PPO:
-    def __init__(self, state_dim, action_dim, action_std, lr, betas, gamma, lmbda, K_epochs, eps_clip):
-        self.lr = lr
-        self.betas = betas
+    def __init__(self, state_dim, action_dim, action_std, lr_actor, lr_critic, gamma, lmbda, K_epochs, eps_clip):
+        
         self.gamma = gamma
         self.lmbda = lmbda
         self.eps_clip = eps_clip
         self.K_epochs = K_epochs
         
         self.policy = ActorCritic(state_dim, action_dim, action_std).to(device)
-        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
+        self.optimizer = torch.optim.Adam([
+                        {'params': self.policy.actor.parameters(), 'lr': lr_actor},
+                        {'params': self.policy.critic.parameters(), 'lr': lr_critic}
+                    ])        
         
         self.policy_old = ActorCritic(state_dim, action_dim, action_std).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
@@ -130,12 +132,10 @@ class PPO:
             advantages = self.gamma * self.lmbda * advantages + delta_t[0]
             advantages_lst.insert(0, [advantages])        
         advantages = torch.squeeze(torch.tensor(advantages_lst, dtype=torch.float))  
-
+        
         # Normalizaing the advantagess  
-        print(advantages)
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
-        print(advantages)
-        sys.exit()
+
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):  #update를 할때 k_epochs만큼 나눠서 update를함. 그래서 천천히 policy가 좋은방향으로 바뀜.(PPO 특징)
             # Evaluating old actions and values :
@@ -210,15 +210,16 @@ def main(k,path,network_path):
     action_std = 0.5            # constant std for action distribution (Multivariate Normal)
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.99                # discount factor
-    lmbda = 0.97               # GAE lambda
-    lr = 0.001                 # parameters for Adam optimizer
-    betas = (0.9, 0.999)       # Adam optimization
+    lmbda = 0.97                # gae lambda
+    
+    lr_actor = 0.0003                 # learning rate for actor
+    lr_critic = 0.001                 # learning rate for critic    
     
     
     memory1, memory2, memory3, memory4 = Memory(), Memory(), Memory(), Memory() #Class Memory 사용.
     total_memory = Memory()
     
-    ppo = PPO(state_dim, action_dim, action_std, lr, betas, gamma, lmbda, K_epochs, eps_clip)
+    ppo = PPO(state_dim, action_dim, action_std, lr_actor, lr_critic, gamma, lmbda, K_epochs, eps_clip)
     
     # if network_path != None:
     #     network = torch.load(network_path)
