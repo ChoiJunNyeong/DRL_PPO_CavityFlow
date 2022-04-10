@@ -1,4 +1,4 @@
-# 2021-09-29
+# 2022-04-10
 from ftplib import FTP
 import numpy as np
 import os
@@ -9,7 +9,7 @@ class communication:
         self.ftp.connect(host='10.74.18.5'+str(num))
         self.ftp.login(user='JUN', passwd='123456')
         self.ftp.sendcmd('PASV') #passive mode로 사용한다고 전달
-        self.home = '/home1/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000_LzD1/00DATA_05DRL'
+        self.home = '/home1/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000_LzD2/00DATA_05DRL'
         # self.home = '/home1/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000/00DATA_05DRL'
         self.ftp.cwd(self.home) #home directory로 이동
         
@@ -101,8 +101,7 @@ class communication:
                 if not line: break
                 for item in line:
                     if item != '':
-                        output.append(int(item))
-            
+                        output.append(int(item))        
         params = ['% max_episodes', '% action_num', '% state_dim', 
                   '% action_dim', '% Update_epi_num', '% K_epochs times',
                   '% Simulation Parallel']
@@ -135,7 +134,7 @@ class communication:
         
     def history_reward_done(self, reward, done):
         with open('history.txt', 'a') as temp:
-            temp.write("{0:12.3f}{1:12}".format(reward,int(done)))
+            temp.write("{0:12.5f}{1:12}".format(reward,int(done)))
             temp.write("\n")
             
     def logging(self, i, i_episode, action_step, log_avg_reward):
@@ -143,7 +142,6 @@ class communication:
         log_f_name = log_dir + '/PPO_' + "Cavity" + "_log_" + str(i) + ".csv"
         with open(log_f_name, 'a') as temp:
             temp.write('{},{},{}\n'.format(i_episode, action_step, log_avg_reward))
-    
     
     # def history_write(self, string):
     #     with open('history.txt', 'a') as temp:
