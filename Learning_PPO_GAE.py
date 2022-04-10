@@ -34,20 +34,20 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
         super(ActorCritic, self).__init__() #nn.module의 init를 상속받게 함. 항상해줘야함!
         # action mean range -1 to 1
         self.actor = nn.Sequential(        #nn.linear 편하게 구성.
-                nn.Linear(state_dim, 256),  #input에서 1st layer로 
-                nn.Tanh(),                 #1st layer의 actication fuction
-                nn.Linear(256, 256),         #1st layer에서 2nd layer로 (neuron 갯수)
-                nn.Tanh(),                 #2nd layer의 actication fuction
-                nn.Linear(256, action_dim), #2nd layer에서 output layer로
+                nn.Linear(state_dim, 512),  #input에서 1st layer로 
+                nn.ReLU(),                 #1st layer의 actication fuction
+                nn.Linear(512, 512),         #1st layer에서 2nd layer로 (neuron 갯수)
+                nn.ReLU(),                 #2nd layer의 actication fuction
+                nn.Linear(512, action_dim), #2nd layer에서 output layer로
                 nn.Tanh()                  #output layer의 actication fuction
                 )        
         # critic
         self.critic = nn.Sequential(
-                nn.Linear(state_dim, 256),
-                nn.Tanh(),
-                nn.Linear(256, 256),
-                nn.Tanh(),
-                nn.Linear(256, 1)           #value니깐 output이 항상 1이다.
+                nn.Linear(state_dim, 512),
+                nn.ReLU(),
+                nn.Linear(512, 512),
+                nn.ReLU(),
+                nn.Linear(512, 1)           #value니깐 output이 항상 1이다.
                 )
         self.action_var = torch.full((action_dim,), action_std*action_std).to(device) #full : 후자를 전자로 구성.
         self.action_dim = action_dim
@@ -61,7 +61,7 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
         cov_mat = torch.diag(self.action_var).unsqueeze(dim=0)  #unsqueeze : 두번째 차원에 1차원을 추가. ex) scalar(3)이면 tensor([1,3])이됨.        
         dist = MultivariateNormal(action_mean, cov_mat)   #출력한 action 확률을 토대로 확률밀도함수를 만듬
         action = dist.sample()                            #확률밀도함수에서 action을 sampling함 (하나의 action이 추출된다.)
-        action = action.clamp(-1.5, 1.5)
+        action = action.clamp(-2.0, 2.0)
         action_logprob = dist.log_prob(action)            #log-likelihood
         return action.detach(), action_logprob.detach()
     
@@ -71,7 +71,6 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
         action_var = self.action_var.expand_as(action_mean)
         cov_mat = torch.diag_embed(action_var).to(device)        
         dist = MultivariateNormal(action_mean, cov_mat)
-        action = action.clamp(-1.5, 1.5)
         
         # for single action continuous environments
         if self.action_dim == 1:
@@ -80,7 +79,7 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
         dist_entropy = dist.entropy()
         state_value = self.critic(state)
         
-        return action_logprobs, state_value, dist_entropy  #squeeze : 차원 1개를 없앰. 여기서 차원없애서 update에서 차원이 맞아짐.
+        return action_logprobs, state_value, dist_entropy  
 
 class PPO:
     def __init__(self, state_dim, action_dim, action_std, lr_actor, lr_critic, gamma, lmbda, K_epochs, eps_clip):
@@ -101,10 +100,10 @@ class PPO:
         
         self.MseLoss = nn.MSELoss()   #loss 함수로 mse를 사용.
     
-    def select_action(self, state, memory):                        #floattensor : tensor로 만들어줌.
+    def select_action(self, state, memory):    
 
         with torch.no_grad():
-            action, action_logprob = self.policy_old.act(torch.FloatTensor(state))
+            action, action_logprob = self.policy_old.act(torch.FloatTensor(state))   #floattensor : tensor로 만들어줌.
         memory.states.append(state)
         memory.actions.append(action)
         memory.logprobs.append(action_logprob)
@@ -131,10 +130,11 @@ class PPO:
                 advantages = 0.0
             advantages = self.gamma * self.lmbda * advantages + delta_t[0]
             advantages_lst.insert(0, [advantages])        
-        advantages = torch.squeeze(torch.tensor(advantages_lst, dtype=torch.float))  
+        advantages = torch.squeeze(torch.tensor(advantages_lst, dtype=torch.float))  #squeeze : 차원 1개를 없앰. 여기서 차원없애서 update에서 차원이 맞아짐.
         
         # Normalizaing the advantagess  
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
+
 
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):  #update를 할때 k_epochs만큼 나눠서 update를함. 그래서 천천히 policy가 좋은방향으로 바뀜.(PPO 특징)
@@ -161,7 +161,12 @@ class PPO:
             
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict()) # weight & bias를 저장하고 복사.(모델 저장할때도 사용함.)
-    
+        
+    def save(self, checkpoint_path):
+        torch.save(self.policy_old.state_dict(), checkpoint_path)
+
+
+
 def main(k,path,network_path):
     # path = "DRL(PPO)_result/"+"Cavity"+'/{}'.format(k) #learning_result폴더 만들어서 저장.           
     # if not os.path.exists(path):    # client 경로의 file 확인.
@@ -202,18 +207,17 @@ def main(k,path,network_path):
     log_freq = action_num * 1
 
     ##########################Save model############################
-    save_dir = "DRL(PPO)_preTrained" + '/' + "Cavity" 
+    save_dir = "DRL(PPO)_preTrained" + '/' + "Cavity"
     if not os.path.exists(save_dir):
           os.makedirs(save_dir)
-         
+
     ####################### Hyperparametesrs #######################
     action_std = 0.5            # constant std for action distribution (Multivariate Normal)
     eps_clip = 0.2              # clip parameter for PPO
     gamma = 0.99                # discount factor
     lmbda = 0.97                # gae lambda
-    
-    lr_actor = 0.0003                 # learning rate for actor
-    lr_critic = 0.001                 # learning rate for critic    
+    lr_actor = 0.0003           # learning rate for actor
+    lr_critic = 0.001           # learning rate for critic    
     
     
     memory1, memory2, memory3, memory4 = Memory(), Memory(), Memory(), Memory() #Class Memory 사용.
@@ -237,7 +241,7 @@ def main(k,path,network_path):
     
     action1, action2, action3, action4 = 0, 0, 0, 0
     reward1, reward2, reward3, reward4 = 0, 0, 0, 0
-    reward = 0.000
+    reward = 0.0
     flag = 1
     result = []
     for i in range(1,parr+1):
@@ -246,10 +250,8 @@ def main(k,path,network_path):
     #                       Training loop(episode)
     #==========================================================================
     for i_episode in range(1, max_episodes+1): #episode loop
-        done1, done2, done3, done4 = 0, 0, 0, 0
         current_ep_reward1, current_ep_reward2, current_ep_reward3, current_ep_reward4 = 0, 0, 0, 0         
         log_running_episodes += 1        
-        
         
         print("")
         print(datetime.datetime.now(), i_episode,'/',max_episodes,'시작...')
@@ -440,14 +442,14 @@ def main(k,path,network_path):
                         
                 ppo.update(total_memory)
                 total_memory.clear_memory()
-                # action_step = 0
                 end = datetime.datetime.now()
                 print(end, update_count, '번째 업데이트 끝 .. 소요시간:', end-start)
         #==================================================================
-        # Save moder after epi_freq 
+        # Save model after epi_freq 
         #==================================================================
         if i_episode % update_epi_num == 0:
-            torch.save(ppo.policy, save_dir+'/update_{}th.pth'.format(update_count)) # state_dict() 해야하나??? 수정요망.                    
+            ppo.save(save_dir+'/update_{}th.pth'.format(update_count))
+            # torch.save(ppo.policy, save_dir+'/update_{}th.pth'.format(update_count)) # state_dict() 해야하나??? 수정요망.                    
     
             # running_reward += reward
             # done = 1
