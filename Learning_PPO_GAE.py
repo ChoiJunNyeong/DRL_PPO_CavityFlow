@@ -256,27 +256,27 @@ def main(k,path,network_path):
         print("")
         print(datetime.datetime.now(), i_episode,'/',max_episodes,'시작...')
         
-        if i_episode == 1: #1 episode에만 initializer.txt 읽음    
-        #--------------initial file download (state) from server---------------
-            for i in result:    #episode 시작할때마다 반복하니 if문으로 바꿔주자!
-                while True:     #parr에 initializer.tex가 생길때까지 기다리고, 생기면 download하자.
-                    time.sleep(1)
-                    commu.login(i)
-                    commu.server_cwd()
-                    if 'initializer.txt' in commu.server_list(): #initializer 파일 다운로드 from server
-                        commu.download('initializer.txt','initializer_'+str(i)+'.txt') #initializer_str(v)이름으로 다운로드
-                        break                    
-            #initial file read (state)                1
-            for v in range(1,parr+1):  #초기 데이터 read
-                if v == 1:
-                    state1 = commu.read_init(v,state_dim,action_dim,flag)
-                elif v == 2:
-                    state2 = commu.read_init(v,state_dim,action_dim,flag)
-                elif v == 3:
-                    state3 = commu.read_init(v,state_dim,action_dim,flag)
-                elif v == 4:
-                    state4 = commu.read_init(v,state_dim,action_dim,flag)
-                flag = 0
+        #if i_episode == 1: #1 episode에만 initializer.txt 읽음    
+    #--------------initial file download (state) from server---------------
+        for i in result:    #episode 시작할때마다 반복하니 if문으로 바꿔주자!
+            while True:     #parr에 initializer.tex가 생길때까지 기다리고, 생기면 download하자.
+                time.sleep(1)
+                commu.login(i)
+                commu.server_cwd()
+                if 'initializer.txt' in commu.server_list(): #initializer 파일 다운로드 from server
+                    commu.download('initializer.txt','initializer_'+str(i)+'.txt') #initializer_str(v)이름으로 다운로드
+                    break                    
+        #initial file read (state)                1
+        for v in range(1,parr+1):  #초기 데이터 read
+            if v == 1:
+                state1 = commu.read_init(v,state_dim,action_dim,flag)
+            elif v == 2:
+                state2 = commu.read_init(v,state_dim,action_dim,flag)
+            elif v == 3:
+                state3 = commu.read_init(v,state_dim,action_dim,flag)
+            elif v == 4:
+                state4 = commu.read_init(v,state_dim,action_dim,flag)
+            flag = 0
         #----------------------------------------------------------------------
 
         #======================================================================
