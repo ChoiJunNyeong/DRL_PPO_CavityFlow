@@ -39,7 +39,7 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
                 nn.Linear(512, 512),         #1st layer에서 2nd layer로 (neuron 갯수)
                 nn.ReLU(),                 #2nd layer의 actication fuction
                 nn.Linear(512, action_dim), #2nd layer에서 output layer로
-                nn.Tanh()                  #output layer의 actication fuction
+                # nn.Tanh()                  #output layer의 actication fuction
                 )        
         # critic
         self.critic = nn.Sequential(
@@ -58,10 +58,11 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
     def act(self, state):
         # operations per decision time step
         action_mean = self.actor(state)                   #diag: 값들을 대각행렬로 만들어줌.(Stocahstic policy를 위해 사용, 연속공간에서 주로 사용됨.)
+        action_mean = torch.clamp(action_mean, -2.0, 2.0)  
         cov_mat = torch.diag(self.action_var).unsqueeze(dim=0)  #unsqueeze : 두번째 차원에 1차원을 추가. ex) scalar(3)이면 tensor([1,3])이됨.        
         dist = MultivariateNormal(action_mean, cov_mat)   #출력한 action 확률을 토대로 확률밀도함수를 만듬
         action = dist.sample()                            #확률밀도함수에서 action을 sampling함 (하나의 action이 추출된다.)
-        action = action.clamp(-2.0, 2.0)
+        action = torch.clamp(action, -2.0, 2.0) 
         action_logprob = dist.log_prob(action)            #log-likelihood
         return action.detach(), action_logprob.detach()
     
@@ -119,25 +120,38 @@ class PPO:
         a = torch.squeeze(torch.stack(memory.actions, dim=0)).detach().to(device)
         old_logprobs = torch.squeeze(torch.stack(memory.logprobs, dim=0)).detach().to(device) 
         
+        # td_target = r + self.gamma * self.policy.critic(s_prime) * done_mask  
+        # delta = td_target - self.policy.critic(s)        
+        # delta = delta.detach().numpy()
+        # advantages_lst = []
+        # advantages = 0.0
+        # for delta_t, done_mask_t in zip(reversed(delta), reversed(done_mask)):
+        #     if done_mask_t == 0.0:
+        #         advantages = 0.0
+        #     advantages = self.gamma * self.lmbda * advantages + delta_t[0]
+        #     advantages_lst.insert(0, [advantages])        
+        # advantages = torch.squeeze(torch.tensor(advantages_lst, dtype=torch.float))  #squeeze : 차원 1개를 없앰. 여기서 차원없애서 update에서 차원이 맞아짐.
         
-        td_target = r + self.gamma * self.policy.critic(s_prime) * done_mask  
-        delta = td_target - self.policy.critic(s)        
-        delta = delta.detach().numpy()
-        advantages_lst = []
-        advantages = 0.0
-        for delta_t, done_mask_t in zip(reversed(delta), reversed(done_mask)):
-            if done_mask_t == 0.0:
-                advantages = 0.0
-            advantages = self.gamma * self.lmbda * advantages + delta_t[0]
-            advantages_lst.insert(0, [advantages])        
-        advantages = torch.squeeze(torch.tensor(advantages_lst, dtype=torch.float))  #squeeze : 차원 1개를 없앰. 여기서 차원없애서 update에서 차원이 맞아짐.
-        
-        # Normalizaing the advantagess  
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
-
+        # # Normalizaing the advantagess  
+        # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
 
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):  #update를 할때 k_epochs만큼 나눠서 update를함. 그래서 천천히 policy가 좋은방향으로 바뀜.(PPO 특징)
+            td_target = r + self.gamma * self.policy.critic(s_prime) * done_mask  
+            delta = td_target - self.policy.critic(s)        
+            delta = delta.detach().numpy()
+            advantages_lst = []
+            advantages = 0.0
+            for delta_t, done_mask_t in zip(reversed(delta), reversed(done_mask)):
+                if done_mask_t == 0.0:
+                    advantages = 0.0
+                advantages = self.gamma * self.lmbda * advantages + delta_t[0]
+                advantages_lst.insert(0, [advantages])        
+            advantages = torch.squeeze(torch.tensor(advantages_lst, dtype=torch.float))  #squeeze : 차원 1개를 없앰. 여기서 차원없애서 update에서 차원이 맞아짐.
+            
+            # Normalizaing the advantagess  
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
+            
             # Evaluating old actions and values :
             logprobs, state_values, dist_entropy = self.policy.evaluate(s, a)
             
@@ -182,8 +196,8 @@ def main(k,path,network_path):
     commu.download('env_param.txt', 'env_param.txt')
     [max_episodes, action_num, state_dim, action_dim, update_epi_num, K_epochs, parr] = commu.read_env_param()
     
-    state1, state2, state3, state4 = [], [], [], []
-    p_state1, p_state2, p_state3, p_state4 = [], [], [], []
+    state1, state2, state3, state4, state5 = [], [], [], [], []
+    p_state1, p_state2, p_state3, p_state4, p_state5 = [], [], [], [], []
     update_action_num = update_epi_num*action_num      # update policy every n timesteps, update_epi_num : #회 epi당 업데이트
     
     #########################logging###############################   
@@ -220,7 +234,7 @@ def main(k,path,network_path):
     lr_critic = 0.001           # learning rate for critic    
     
     
-    memory1, memory2, memory3, memory4 = Memory(), Memory(), Memory(), Memory() #Class Memory 사용.
+    memory1, memory2, memory3, memory4, memory5 = Memory(), Memory(), Memory(), Memory(), Memory() #Class Memory 사용.
     total_memory = Memory()
     
     ppo = PPO(state_dim, action_dim, action_std, lr_actor, lr_critic, gamma, lmbda, K_epochs, eps_clip)
@@ -239,8 +253,8 @@ def main(k,path,network_path):
     update_count = 0
     
     
-    action1, action2, action3, action4 = 0, 0, 0, 0
-    reward1, reward2, reward3, reward4 = 0, 0, 0, 0
+    action1, action2, action3, action4, action5 = 0, 0, 0, 0, 0
+    reward1, reward2, reward3, reward4, reward5 = 0, 0, 0, 0, 0
     reward = 0.0
     flag = 1
     result = []
@@ -250,13 +264,13 @@ def main(k,path,network_path):
     #                       Training loop(episode)
     #==========================================================================
     for i_episode in range(1, max_episodes+1): #episode loop
-        current_ep_reward1, current_ep_reward2, current_ep_reward3, current_ep_reward4 = 0, 0, 0, 0         
+        current_ep_reward1, current_ep_reward2, current_ep_reward3, current_ep_reward4, current_ep_reward5 = 0, 0, 0, 0, 0         
         log_running_episodes += 1        
         
         print("")
         print(datetime.datetime.now(), i_episode,'/',max_episodes,'시작...')
         
-        #if i_episode == 1: #1 episode에만 initializer.txt 읽음    
+        # if i_episode == 1: #1 episode에만 initializer.txt 읽음    
     #--------------initial file download (state) from server---------------
         for i in result:    #episode 시작할때마다 반복하니 if문으로 바꿔주자!
             while True:     #parr에 initializer.tex가 생길때까지 기다리고, 생기면 download하자.
@@ -266,7 +280,7 @@ def main(k,path,network_path):
                 if 'initializer.txt' in commu.server_list(): #initializer 파일 다운로드 from server
                     commu.download('initializer.txt','initializer_'+str(i)+'.txt') #initializer_str(v)이름으로 다운로드
                     break                    
-        #initial file read (state)                1
+        #initial file read (state)                
         for v in range(1,parr+1):  #초기 데이터 read
             if v == 1:
                 state1 = commu.read_init(v,state_dim,action_dim,flag)
@@ -276,8 +290,10 @@ def main(k,path,network_path):
                 state3 = commu.read_init(v,state_dim,action_dim,flag)
             elif v == 4:
                 state4 = commu.read_init(v,state_dim,action_dim,flag)
+            elif v == 5:
+                state5 = commu.read_init(v,state_dim,action_dim,flag)
             flag = 0
-        #----------------------------------------------------------------------
+    #----------------------------------------------------------------------
 
         #======================================================================
         #                Action number per 1 episode   
@@ -304,9 +320,13 @@ def main(k,path,network_path):
                 elif v == 4:
                     action4 = ppo.select_action(state4, memory4)
                     commu.write(action4)
+                    commu.upload('made_in_client.txt', 'cl_to_sv.txt')
+                elif v == 5:
+                    action5 = ppo.select_action(state5, memory5)
+                    commu.write(action5)
                     commu.upload('made_in_client.txt', 'cl_to_sv.txt')                    
                                   
-            print("action step :",action_step, ",", "action value[1~4] :",action1, action2, action3, action4) #action 값.
+            print("action step :",action_step, ",", "action value[1~5] :",action1, action2, action3, action4, action5) #action 값.
             
             #file download (state,reward) from server  
             for i in result:
@@ -344,7 +364,13 @@ def main(k,path,network_path):
                     memory4.rewards.append([reward4])
                     memory4.is_terminals.append([done4])   
                     memory4.states_p.append(state4)
-                
+                elif v == 5:
+                    p_state5 = state5
+                    state5, reward5, done5 = commu.read(v)
+                    memory5.rewards.append([reward5])
+                    memory5.is_terminals.append([done5])   
+                    memory5.states_p.append(state5)
+            print("done value[1~5] :",done1, done2, done3, done4, done5) #action 값.
             #==================================================================
             #logging : history file에 값들을 저장. 
             #==================================================================
@@ -352,6 +378,7 @@ def main(k,path,network_path):
             current_ep_reward2 += reward2            
             current_ep_reward3 += reward3
             current_ep_reward4 += reward4  
+            current_ep_reward5 += reward5  
             # every time step
             for v in range(1,parr+1):
                 if v == 1:
@@ -374,6 +401,11 @@ def main(k,path,network_path):
                     commu.history_state(p_state4)
                     commu.history_action(action4)
                     commu.history_reward_done(reward4, done4)
+                elif v == 5:
+                    commu.history_ep_ts(i_episode, t, v)
+                    commu.history_state(p_state5)
+                    commu.history_action(action5)
+                    commu.history_reward_done(reward5, done5)
             #logging avg reward        
             if action_step % log_freq == 0:    
                 for i in range(1,parr+1):
@@ -392,12 +424,17 @@ def main(k,path,network_path):
                     elif i == 4:
                         log_avg_reward4 = current_ep_reward4 / log_running_episodes
                         log_avg_reward4 = round(log_avg_reward4, 4)
-                        commu.logging(i,i_episode,action_step,log_avg_reward4)                        
+                        commu.logging(i,i_episode,action_step,log_avg_reward4)    
+                    elif i == 5:
+                        log_avg_reward5 = current_ep_reward5 / log_running_episodes
+                        log_avg_reward5 = round(log_avg_reward5, 4)
+                        commu.logging(i,i_episode,action_step,log_avg_reward5)
                 log_running_episodes = 0
                 current_ep_reward1 = 0
                 current_ep_reward2 = 0            
                 current_ep_reward3 = 0
                 current_ep_reward4 = 0
+                current_ep_reward5 = 0
             #==================================================================        
             # Update DRL model
             #==================================================================
@@ -437,7 +474,15 @@ def main(k,path,network_path):
                         total_memory.logprobs += memory4.logprobs
                         total_memory.rewards += memory4.rewards
                         total_memory.is_terminals += memory4.is_terminals
-                        memory4.clear_memory()                        
+                        memory4.clear_memory()    
+                    elif v == 5:
+                        total_memory.actions += memory5.actions
+                        total_memory.states += memory5.states
+                        total_memory.states_p += memory5.states_p                           
+                        total_memory.logprobs += memory5.logprobs
+                        total_memory.rewards += memory5.rewards
+                        total_memory.is_terminals += memory5.is_terminals
+                        memory5.clear_memory()  
                         
                         
                 ppo.update(total_memory)
