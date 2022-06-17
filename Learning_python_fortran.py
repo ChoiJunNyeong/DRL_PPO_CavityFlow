@@ -1,17 +1,25 @@
-# 2022-04-10
+# 2022-06-17
 from ftplib import FTP
 import numpy as np
 import os
 
 class communication:
     def login(self,num):
-        self.ftp = FTP()
-        self.ftp.connect(host='10.74.18.5'+str(num))
-        self.ftp.login(user='JUN', passwd='123456')
-        self.ftp.sendcmd('PASV') #passive mode로 사용한다고 전달
-        self.home = '/home1/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000_LzD2/00DATA_05DRL'
-        # self.home = '/home1/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000/00DATA_05DRL'
-        self.ftp.cwd(self.home) #home directory로 이동
+        if num <= 4:
+            self.ftp = FTP()
+            self.ftp.connect(host='10.74.18.5'+str(num))
+            self.ftp.login(user='JUN', passwd='123456')
+            self.ftp.sendcmd('PASV') #passive mode로 사용한다고 전달
+            self.home = '/home1/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000_LzD1/00DATA_05DRL'
+            # self.home = '/home1/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000/00DATA_05DRL'
+            self.ftp.cwd(self.home) #home directory로 이동
+        elif num == 5:
+            self.ftp = FTP()
+            self.ftp.connect(host='10.74.18.94')
+            self.ftp.login(user='JUN', passwd='123456')
+            self.ftp.sendcmd('PASV') #passive mode로 사용한다고 전달
+            self.home = '/home3/JUN/Research_Cavity_DRL/Phase02_MainSimulation/02MainSimulation/0000Control_Cavity_LES_RE12000_LzD1/00DATA_05DRL'
+            self.ftp.cwd(self.home) #home directory로 이동        
         
     def server_cwd(self):
         self.ftp.cwd(self.home) #디렉토리 변경(branch+number)
