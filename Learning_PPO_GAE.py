@@ -64,6 +64,7 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
         action = dist.sample()                            #확률밀도함수에서 action을 sampling함 (하나의 action이 추출된다.)
         action = torch.clamp(action, -2.0, 2.0) 
         action_logprob = dist.log_prob(action)            #log-likelihood
+        print("Action mean[1~5] :",action_mean) #action 값.
         return action.detach(), action_logprob.detach()
     
     
@@ -120,21 +121,6 @@ class PPO:
         a = torch.squeeze(torch.stack(memory.actions, dim=0)).detach().to(device)
         old_logprobs = torch.squeeze(torch.stack(memory.logprobs, dim=0)).detach().to(device) 
         
-        # td_target = r + self.gamma * self.policy.critic(s_prime) * done_mask  
-        # delta = td_target - self.policy.critic(s)        
-        # delta = delta.detach().numpy()
-        # advantages_lst = []
-        # advantages = 0.0
-        # for delta_t, done_mask_t in zip(reversed(delta), reversed(done_mask)):
-        #     if done_mask_t == 0.0:
-        #         advantages = 0.0
-        #     advantages = self.gamma * self.lmbda * advantages + delta_t[0]
-        #     advantages_lst.insert(0, [advantages])        
-        # advantages = torch.squeeze(torch.tensor(advantages_lst, dtype=torch.float))  #squeeze : 차원 1개를 없앰. 여기서 차원없애서 update에서 차원이 맞아짐.
-        
-        # # Normalizaing the advantagess  
-        # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
-
         # Optimize policy for K epochs:
         for _ in range(self.K_epochs):  #update를 할때 k_epochs만큼 나눠서 update를함. 그래서 천천히 policy가 좋은방향으로 바뀜.(PPO 특징)
             td_target = r + self.gamma * self.policy.critic(s_prime) * done_mask  
@@ -178,6 +164,10 @@ class PPO:
         
     def save(self, checkpoint_path):
         torch.save(self.policy_old.state_dict(), checkpoint_path)
+        
+    def load(self, checkpoint_path):
+        self.policy_old.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+        self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
 
 
@@ -191,7 +181,7 @@ def main(k,path,network_path):
     commu.login(1)
     commu.server_cwd()
     while 'env_param.txt' not in commu.server_list(): #server file 확인.
-        time.sleep(3) # 파일 생성될때까지 5초 대기.
+        time.sleep(2) # 파일 생성될때까지 2초 대기.
         print("waiting for download environment param from server")
     commu.download('env_param.txt', 'env_param.txt')
     [max_episodes, action_num, state_dim, action_dim, update_epi_num, K_epochs, parr] = commu.read_env_param()
@@ -199,6 +189,10 @@ def main(k,path,network_path):
     state1, state2, state3, state4, state5 = [], [], [], [], []
     p_state1, p_state2, p_state3, p_state4, p_state5 = [], [], [], [], []
     update_action_num = update_epi_num*action_num      # update policy every n timesteps, update_epi_num : #회 epi당 업데이트
+
+    # Read state normalization parameters : mean, std 
+    input_mean, input_std = [], []
+    input_mean, input_std = commu.read_state_normalized()
     
     #########################logging###############################   
     # log files for multiple runs are NOT overwritten    
@@ -214,7 +208,7 @@ def main(k,path,network_path):
           
         # logging file
         log_f = open(log_f_name,"a")
-        log_f.write('Episode,Action_num,Reward\n')
+        # log_f.write('Episode,Action_num,Reward\n')
         log_f.close()
         
     log_running_episodes = 0
@@ -249,12 +243,17 @@ def main(k,path,network_path):
     running_reward = 0
     avg_length = 0
     time_step = 0
-    action_step = 0
     update_count = 0
+    action_step = update_action_num*update_count
     
-    
+    ##########################Load model############################    
+    if network_path != None:
+        ppo.load(save_dir+'/update_{}th.pth'.format(update_count))
+        print('load model : '+save_dir+'/update_{}th.pth'.format(update_count))
+
     action1, action2, action3, action4, action5 = 0, 0, 0, 0, 0
     reward1, reward2, reward3, reward4, reward5 = 0, 0, 0, 0, 0
+    done1, done2, done3, done4, done5 = 0, 0, 0, 0, 0
     reward = 0.0
     flag = 1
     result = []
@@ -263,13 +262,12 @@ def main(k,path,network_path):
     #==========================================================================
     #                       Training loop(episode)
     #==========================================================================
-    for i_episode in range(1, max_episodes+1): #episode loop
+    for i_episode in range(update_count*4+1, max_episodes+1): #episode loop
         current_ep_reward1, current_ep_reward2, current_ep_reward3, current_ep_reward4, current_ep_reward5 = 0, 0, 0, 0, 0         
         log_running_episodes += 1        
         
         print("")
         print(datetime.datetime.now(), i_episode,'/',max_episodes,'시작...')
-        
         # if i_episode == 1: #1 episode에만 initializer.txt 읽음    
     #--------------initial file download (state) from server---------------
         for i in result:    #episode 시작할때마다 반복하니 if문으로 바꿔주자!
@@ -300,7 +298,14 @@ def main(k,path,network_path):
         #======================================================================
         for t in range(1,action_num+1): #action 횟수로 알아보게 수정!!
             action_step +=1 #cummulative value
-            # episode_step +=1
+            
+            # State normalization
+            state1 = (state1 - input_mean) / (input_std + 1e-10)       
+            state2 = (state2 - input_mean) / (input_std + 1e-10)
+            state3 = (state3 - input_mean) / (input_std + 1e-10)
+            state4 = (state4 - input_mean) / (input_std + 1e-10)
+            state5 = (state5 - input_mean) / (input_std + 1e-10)
+            
             # Running policy_old:
             for v in range(1,parr+1):
                 commu.login(v)
@@ -326,12 +331,12 @@ def main(k,path,network_path):
                     commu.write(action5)
                     commu.upload('made_in_client.txt', 'cl_to_sv.txt')                    
                                   
-            print("action step :",action_step, ",", "action value[1~5] :",action1, action2, action3, action4, action5) #action 값.
+            print("Action step :",action_step, ",", "Action value[1~5] :",action1, action2, action3, action4, action5) #action 값.
             
             #file download (state,reward) from server  
             for i in result:
                 while True:
-                    time.sleep(3)
+                    time.sleep(1)
                     commu.login(i)
                     commu.server_cwd()
                     if 'made_in_server.txt' in commu.server_list():
@@ -341,35 +346,45 @@ def main(k,path,network_path):
             #file read (state, reward) and stack in each memory[i]     
             for v in range(1,parr+1):
                 if v == 1:
-                    p_state1 = state1 
-                    state1, reward1, done1 = commu.read(v)
+                    state1, reward1, done1 = commu.read(v)      
+                    p_state1 = state1.copy()
+                    p_state1 = (p_state1 - input_mean) / (input_std + 1e-10)
+                    
                     memory1.rewards.append([reward1])
                     memory1.is_terminals.append([done1])
-                    memory1.states_p.append(state1)
+                    memory1.states_p.append(p_state1)
                 elif v == 2:
-                    p_state2 = state2
                     state2, reward2, done2 = commu.read(v)
+                    p_state2 = state2.copy()
+                    p_state2 = (p_state2 - input_mean) / (input_std + 1e-10)
+                    
                     memory2.rewards.append([reward2])
                     memory2.is_terminals.append([done2])
-                    memory2.states_p.append(state2)
+                    memory2.states_p.append(p_state2)
                 elif v == 3:
-                    p_state3 = state3
                     state3, reward3, done3 = commu.read(v)
+                    p_state3 = state3.copy()
+                    p_state3 = (p_state3 - input_mean) / (input_std + 1e-10)
+                    
                     memory3.rewards.append([reward3])
                     memory3.is_terminals.append([done3])  
-                    memory3.states_p.append(state3)
+                    memory3.states_p.append(p_state3)
                 elif v == 4:
-                    p_state4 = state4
                     state4, reward4, done4 = commu.read(v)
+                    p_state4 = state4.copy()
+                    p_state4 = (p_state4 - input_mean) / (input_std + 1e-10)
+                    
                     memory4.rewards.append([reward4])
                     memory4.is_terminals.append([done4])   
-                    memory4.states_p.append(state4)
+                    memory4.states_p.append(p_state4)
                 elif v == 5:
-                    p_state5 = state5
                     state5, reward5, done5 = commu.read(v)
+                    p_state5 = state5.copy()
+                    p_state5 = (p_state5 - input_mean) / (input_std + 1e-10)
+                    
                     memory5.rewards.append([reward5])
                     memory5.is_terminals.append([done5])   
-                    memory5.states_p.append(state5)
+                    memory5.states_p.append(p_state5)
             print("done value[1~5] :",done1, done2, done3, done4, done5) #action 값.
             #==================================================================
             #logging : history file에 값들을 저장. 
