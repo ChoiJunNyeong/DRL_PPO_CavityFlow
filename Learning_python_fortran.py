@@ -1,4 +1,3 @@
-# 2022-06-17
 from ftplib import FTP
 import numpy as np
 import os
@@ -150,6 +149,21 @@ class communication:
         log_f_name = log_dir + '/PPO_' + "Cavity" + "_log_" + str(i) + ".csv"
         with open(log_f_name, 'a') as temp:
             temp.write('{},{},{}\n'.format(i_episode, action_step, log_avg_reward))
+
+    def read_state_normalized(self):    
+        with open('sensor.txt','r') as temp:
+            mean=[]
+            std=[]
+            for i in range(1,3):
+                if i==1:
+                    mean = temp.readline().strip('\n').split()
+                    for j in range(75):
+                        mean[j] = float(mean[j].replace(' ',''))
+                elif i==2:
+                    std = temp.readline().strip('\n').split()
+                    for j in range(75):
+                        std[j] = float(std[j].replace(' ',''))
+        return np.array(mean),np.array(std)
     
     # def history_write(self, string):
     #     with open('history.txt', 'a') as temp:
