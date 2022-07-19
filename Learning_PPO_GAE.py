@@ -65,6 +65,13 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
         action = torch.clamp(action, -2.0, 2.0) 
         action_logprob = dist.log_prob(action)            #log-likelihood
         print("Action mean[1~5] :",action_mean) #action 값.
+        
+        # Write action mean
+        a_mean_record = action_mean.tolist()
+        with open('DRL(PPO)_logs/Cavity/Action_mean.txt', 'a') as temp:
+            temp.write(str(a_mean_record)) 
+            temp.write("\n")   
+            
         return action.detach(), action_logprob.detach()
     
     
@@ -204,12 +211,17 @@ def main(k,path,network_path):
         #### create new log file for each run 
         log_f_name = log_dir + '/PPO_' + "Cavity" + "_log_" + str(i) + ".csv"
         print("current logging run number for " + "Cavity" + " : ", i)
-        print("logging at : " + log_f_name)  
-          
-        # logging file
+        print("logging at : " + log_f_name)            
         log_f = open(log_f_name,"a")
-        # log_f.write('Episode,Action_num,Reward\n')
+        log_f.write('Episode,Action_num,Reward\n')
         log_f.close()
+        if i == parr:
+            log_f_name_total = log_dir + '/PPO_Cavity_log_total.csv'
+            print("current logging run number for " + "Cavity" + " : total")
+            print("logging at : " + log_f_name_total)              
+            log_f_total = open(log_f_name_total,"a")
+            log_f_total.write('Episode,Reward\n')
+            log_f_total.close() 
         
     log_running_episodes = 0
     log_freq = action_num * 1
@@ -243,7 +255,7 @@ def main(k,path,network_path):
     running_reward = 0
     avg_length = 0
     time_step = 0
-    update_count = 0
+    update_count = 1
     action_step = update_action_num*update_count
     
     ##########################Load model############################    
@@ -428,22 +440,27 @@ def main(k,path,network_path):
                         log_avg_reward1 = current_ep_reward1 / log_running_episodes
                         log_avg_reward1 = round(log_avg_reward1, 4)
                         commu.logging(i,i_episode,action_step,log_avg_reward1)
+                        commu.logging_total(parr*(i_episode-1)+1,log_avg_reward1)
                     elif i == 2:
                         log_avg_reward2 = current_ep_reward2 / log_running_episodes
                         log_avg_reward2 = round(log_avg_reward2, 4)
                         commu.logging(i,i_episode,action_step,log_avg_reward2)
+                        commu.logging_total(parr*(i_episode-1)+2,log_avg_reward2)
                     elif i == 3:
                         log_avg_reward3 = current_ep_reward3 / log_running_episodes
                         log_avg_reward3 = round(log_avg_reward3, 4)
-                        commu.logging(i,i_episode,action_step,log_avg_reward3)         
+                        commu.logging(i,i_episode,action_step,log_avg_reward3)   
+                        commu.logging_total(parr*(i_episode-1)+3,log_avg_reward3)                        
                     elif i == 4:
                         log_avg_reward4 = current_ep_reward4 / log_running_episodes
                         log_avg_reward4 = round(log_avg_reward4, 4)
                         commu.logging(i,i_episode,action_step,log_avg_reward4)    
+                        commu.logging_total(parr*(i_episode-1)+4,log_avg_reward4)                        
                     elif i == 5:
                         log_avg_reward5 = current_ep_reward5 / log_running_episodes
                         log_avg_reward5 = round(log_avg_reward5, 4)
                         commu.logging(i,i_episode,action_step,log_avg_reward5)
+                        commu.logging_total(parr*(i_episode-1)+5,log_avg_reward5)
                 log_running_episodes = 0
                 current_ep_reward1 = 0
                 current_ep_reward2 = 0            
@@ -551,7 +568,7 @@ if __name__ == '__main__':
     #     main(k)
     today = datetime.datetime.today()
     path = today.strftime("%Y-%m-%d %H%M")
-    network_path = None
+    network_path = True
     
     # 이어서 학습하시려면 아래 줄에 파일 경로 입력 후 주석 해제 하시면 됩니다
     # network_path = 'C:\\Users\\PC\\Desktop\\졸업연구\\최종본 저장\\tttest.pth'
