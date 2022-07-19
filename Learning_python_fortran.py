@@ -150,6 +150,12 @@ class communication:
         with open(log_f_name, 'a') as temp:
             temp.write('{},{},{}\n'.format(i_episode, action_step, log_avg_reward))
 
+    def logging_total(self, i_episode, log_avg_reward):
+        log_dir = "DRL(PPO)_logs" + '/' + "Cavity" 
+        log_f_name = log_dir + '/PPO_Cavity_log_total.csv'
+        with open(log_f_name, 'a') as temp:
+            temp.write('{},{}\n'.format(i_episode, log_avg_reward))
+
     def read_state_normalized(self):    
         with open('sensor.txt','r') as temp:
             mean=[]
