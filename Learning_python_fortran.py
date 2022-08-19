@@ -85,7 +85,7 @@ class communication:
             if flag == 1:
                 before = ['ep_#','action_#','machine_#']
                 after = ['Reward','Done']
-                with open('history.txt','a') as temp:
+                with open('DRL(PPO)_logs/Cavity/history.txt','a') as temp:
                     temp.write('%')
                     for item in before:
                         temp.write("{0:>12}".format(item)) #{}안의 숫자는 format인덱스임.
@@ -112,7 +112,7 @@ class communication:
         params = ['% max_episodes', '% action_num', '% state_dim', 
                   '% action_dim', '% Update_epi_num', '% K_epochs times',
                   '% Simulation Parallel']
-        with open('history.txt','a') as temp:  #history에 기록
+        with open('DRL(PPO)_logs/Cavity/history.txt','a') as temp:  #history에 기록
             for i in range(len(params)):
                 temp.write("{} : {}".format(params[i],output[i]))
                 print("{} : {}".format(params[i],output[i]))
@@ -126,21 +126,21 @@ class communication:
         return np.array(output)
             
     def history_ep_ts(self, ep, timestep,machine):
-        with open('history.txt', 'a') as temp:
+        with open('DRL(PPO)_logs/Cavity/history.txt', 'a') as temp:
             temp.write(" {0:12}{1:12}{2:12}".format(ep,timestep,machine))
         
     def history_state(self, states):
-        with open('history.txt', 'a') as temp:
+        with open('DRL(PPO)_logs/Cavity/history.txt', 'a') as temp:
             for item in states:
                 temp.write("{0:12.6f}".format(item))
                 
     def history_action(self, actions):
-        with open('history.txt', 'a') as temp:
+        with open('DRL(PPO)_logs/Cavity/history.txt', 'a') as temp:
             for item in actions:
                 temp.write("{0:12.6f}".format(item))
         
     def history_reward_done(self, reward, done):
-        with open('history.txt', 'a') as temp:
+        with open('DRL(PPO)_logs/Cavity/history.txt', 'a') as temp:
             temp.write("{0:12.5f}{1:12}".format(reward,int(done)))
             temp.write("\n")
             
