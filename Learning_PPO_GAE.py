@@ -86,9 +86,9 @@ class ActorCritic(nn.Module):  #nn 모듈 상속
             action = action.reshape(-1, self.action_dim)
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
-        state_value = self.critic(state)
+        state_values = self.critic(state)
         
-        return action_logprobs, state_value, dist_entropy  
+        return action_logprobs, state_values, dist_entropy  
 
 class PPO:
     def __init__(self, state_dim, action_dim, action_std, lr_actor, lr_critic, gamma, lmbda, K_epochs, eps_clip):
